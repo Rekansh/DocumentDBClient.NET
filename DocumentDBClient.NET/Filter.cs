@@ -2,7 +2,6 @@
 
 namespace DocumentDBClient
 {
-
     public class Filter
     {
         internal Condition Condition { get; set; }
@@ -21,6 +20,8 @@ namespace DocumentDBClient
             GroupOperator = _operator;
             GroupConditions = conditions;
         }
+
+
     }
 
     public class Condition

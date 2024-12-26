@@ -7,7 +7,7 @@
         /// </summary>
         /// <param name="Input">object input</param>
         /// <returns>converted string value</returns>
-        public static string ToString(object Input)
+        public static string ToString(object? Input)
         {
             if (Input == null || Input == DBNull.Value)
                 return string.Empty;

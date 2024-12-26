@@ -55,6 +55,26 @@ namespace DocumentDBClient
             return entity;
         }
 
+        public void Update(UpdateSet updateSet)
+        {
+            if (MyConvert.ToString(updateSet.FilterId) != string.Empty)
+                _collection.UpdateOne(document => document.Id == updateSet.FilterId, updateSet.GetUpdateDefinition<TEntity>());
+            else if (updateSet.Filter != null)
+                _collection.UpdateMany(getSearchCriteriaString(updateSet.Filter), updateSet.GetUpdateDefinition<TEntity>());
+            else
+                _collection.UpdateMany(Builders<TEntity>.Filter.Empty, updateSet.GetUpdateDefinition<TEntity>());
+        }
+
+        public async Task UpdateAsync(UpdateSet updateSet)
+        {
+            if (MyConvert.ToString(updateSet.FilterId) != string.Empty)
+                await _collection.UpdateOneAsync(document => document.Id == updateSet.FilterId, updateSet.GetUpdateDefinition<TEntity>());
+            else if (updateSet.Filter != null)
+                await _collection.UpdateManyAsync(getSearchCriteriaString(updateSet.Filter), updateSet.GetUpdateDefinition<TEntity>());
+            else
+                await _collection.UpdateManyAsync(Builders<TEntity>.Filter.Empty, updateSet.GetUpdateDefinition<TEntity>());
+        }
+
         public void Delete(string id)
         {
             _collection.DeleteOne(document => document.Id == id);
