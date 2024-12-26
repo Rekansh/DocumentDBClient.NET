@@ -34,6 +34,14 @@
         #endregion
 
         #region Get Methods
+        bool IsExist(string id);
+
+        Task<bool> IsExistAsync(string id);
+        
+        bool IsExist(Filter filter);
+
+        Task<bool> IsExistAsync(Filter filter);
+        
         TEntity GetById(string id);
 
         Task<TEntity> GetByIdAsync(string id);

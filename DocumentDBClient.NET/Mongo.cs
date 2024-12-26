@@ -30,7 +30,7 @@ namespace DocumentDBClient
         }
         #endregion
 
-        #region Public Methods
+        #region Public Operation Methods
         public TEntity Insert(TEntity entity)
         {
             _collection.InsertOne(entity);
@@ -60,7 +60,7 @@ namespace DocumentDBClient
             if (MyConvert.ToString(updateSet.FilterId) != string.Empty)
                 _collection.UpdateOne(document => document.Id == updateSet.FilterId, updateSet.GetUpdateDefinition<TEntity>());
             else if (updateSet.Filter != null)
-                _collection.UpdateMany(getSearchCriteriaString(updateSet.Filter), updateSet.GetUpdateDefinition<TEntity>());
+                _collection.UpdateMany(updateSet.Filter.ToString(), updateSet.GetUpdateDefinition<TEntity>());
             else
                 _collection.UpdateMany(Builders<TEntity>.Filter.Empty, updateSet.GetUpdateDefinition<TEntity>());
         }
@@ -70,7 +70,7 @@ namespace DocumentDBClient
             if (MyConvert.ToString(updateSet.FilterId) != string.Empty)
                 await _collection.UpdateOneAsync(document => document.Id == updateSet.FilterId, updateSet.GetUpdateDefinition<TEntity>());
             else if (updateSet.Filter != null)
-                await _collection.UpdateManyAsync(getSearchCriteriaString(updateSet.Filter), updateSet.GetUpdateDefinition<TEntity>());
+                await _collection.UpdateManyAsync(updateSet.Filter.ToString(), updateSet.GetUpdateDefinition<TEntity>());
             else
                 await _collection.UpdateManyAsync(Builders<TEntity>.Filter.Empty, updateSet.GetUpdateDefinition<TEntity>());
         }
@@ -97,12 +97,31 @@ namespace DocumentDBClient
 
         public void Delete(Filter filter)
         {
-            _collection.DeleteMany(getSearchCriteriaString(filter));
+            _collection.DeleteMany(filter.ToString());
         }
         
         public async Task DeleteAsync(Filter filter)
         {
-            await _collection.DeleteManyAsync(getSearchCriteriaString(filter));
+            await _collection.DeleteManyAsync(filter.ToString());
+        }
+        #endregion
+
+        #region Public Get Methods
+        public bool IsExist(string id)
+        {
+            return _collection.CountDocuments(document => document.Id == id) > 0;
+        }
+        public async Task<bool> IsExistAsync(string id)
+        {
+            return await _collection.CountDocumentsAsync(document => document.Id == id) > 0;
+        }
+        public bool IsExist(Filter filter)
+        {
+            return _collection.CountDocuments(filter.ToString()) > 0;
+        }
+        public async Task<bool> IsExistAsync(Filter filter)
+        {
+            return await _collection.CountDocumentsAsync(filter.ToString()) > 0;
         }
 
         public TEntity GetById(string id)
@@ -129,12 +148,12 @@ namespace DocumentDBClient
 
         public List<TEntity> GetAll(Filter filter)
         {
-            return _collection.Find(getSearchCriteriaString(filter)).ToList();
+            return _collection.Find(filter.ToString()).ToList();
         }
 
         public async Task<List<TEntity>> GetAllAsync(Filter filter)
         {
-            var result = await _collection.FindAsync(getSearchCriteriaString(filter));
+            var result = await _collection.FindAsync(filter.ToString());
             return result.ToList();
         }
 
@@ -142,12 +161,12 @@ namespace DocumentDBClient
         {
             if (sorts.Any())
             {
-                var comineSortDefinitions = getSortDefinitions(sorts);
-                return _collection.Find(getSearchCriteriaString(filter)).Sort(comineSortDefinitions).ToList();
+                var comineSortDefinitions = Sort.GetSortDefinitions<TEntity>(sorts);
+                return _collection.Find(filter.ToString()).Sort(comineSortDefinitions).ToList();
             }
             else
             {
-                return _collection.Find(getSearchCriteriaString(filter)).ToList();
+                return _collection.Find(filter.ToString()).ToList();
             }
         }
 
@@ -161,7 +180,7 @@ namespace DocumentDBClient
 
         public async Task<List<TEntity>> GetAllAsync(Filter filter, Sort sort)
         {
-            var result = await _collection.FindAsync(getSearchCriteriaString(filter), getFindOptions(sort));
+            var result = await _collection.FindAsync(filter.ToString(), filter.GetOptions<TEntity>(sort));
             return result.ToList();
         }
 
@@ -170,12 +189,12 @@ namespace DocumentDBClient
             int skipRecords = (pageNo - 1) * pageSize;
             if (sorts.Any())
             {
-                var comineSortDefinitions = getSortDefinitions(sorts);
-                return _collection.Find(getSearchCriteriaString(filter)).Sort(comineSortDefinitions).Skip(skipRecords).Limit(pageSize).ToList();
+                var comineSortDefinitions = Sort.GetSortDefinitions<TEntity>(sorts);
+                return _collection.Find(filter.ToString()).Sort(comineSortDefinitions).Skip(skipRecords).Limit(pageSize).ToList();
             }
             else
             {
-                return _collection.Find(getSearchCriteriaString(filter)).Skip(skipRecords).Limit(pageSize).ToList();
+                return _collection.Find(filter.ToString()).Skip(skipRecords).Limit(pageSize).ToList();
             }
         }
 
@@ -189,160 +208,19 @@ namespace DocumentDBClient
 
         public async Task<List<TEntity>> GetPageDataAsync(int pageNo, int pageSize, Filter filter, Sort sort)
         {
-            var result = await _collection.FindAsync(getSearchCriteriaString(filter), getFindOptions(sort, pageNo, pageSize));
+            var result = await _collection.FindAsync(filter.ToString(), filter.GetOptions<TEntity>(sort, pageNo, pageSize));
             return result.ToList();
         }
 
         public long GetCount(Filter filter)
         {
-            return _collection.CountDocuments(getSearchCriteriaString(filter));
+            return _collection.CountDocuments(filter.ToString());
         }
 
         public async Task<long> GetCountAsync(Filter filter)
         {
-            return await _collection.CountDocumentsAsync(getSearchCriteriaString(filter));
+            return await _collection.CountDocumentsAsync(filter.ToString());
         }
-        #endregion
-
-        #region Private Methods
-        private FindOptions<TEntity, TEntity> getFindOptions(Sort sort, int pageNo = 0, int pageSize = 0)
-        {
-            var findOptions = new FindOptions<TEntity, TEntity>();
-            if (sort != null && MyConvert.ToString(sort.Name) != string.Empty)
-            {
-                var sortBuilders = Builders<TEntity>.Sort.Ascending(sort.Name);
-                if (sort.Direction == SortDirection.Descending)
-                    sortBuilders = Builders<TEntity>.Sort.Descending(sort.Name);
-                findOptions = new FindOptions<TEntity, TEntity>()
-                {
-                    Sort = sortBuilders
-                };
-            }
-            if (pageNo > 0 && pageSize > 0) 
-            {
-                int skipRecords = (pageNo - 1) * pageSize;
-                findOptions.Skip = skipRecords;
-                findOptions.Limit = pageSize;
-            }
-            return findOptions;
-        }
-
-        private SortDefinition<TEntity> getSortDefinitions(List<Sort> sorts)
-        {
-            if (sorts.Any())
-            {
-                var sortBuilders = Builders<TEntity>.Sort;
-                var sortDefinitions = sorts.Select(x =>
-                {
-                    SortDefinition<TEntity> sortDefination;
-                    if (x.Direction == SortDirection.Descending)
-                        sortDefination = sortBuilders.Descending(x.Name);
-                    else
-                        sortDefination = sortBuilders.Ascending(x.Name);
-                    return sortDefination;
-                });
-                return sortBuilders.Combine(sortDefinitions);
-            }
-            return null;
-        }
-
-        private string getSearchCriteriaString(Filter filter)
-        {
-            if (filter == null)
-                return string.Empty;
-
-            if ((filter.GroupConditions.Count > 0 && filter.GroupOperator != GroupOperator.NONE) && filter.Condition != null)
-                throw new Exception("Parameter should not have single condition and group condition both.");
-
-            if (!((filter.GroupConditions.Count > 0 && filter.GroupOperator != GroupOperator.NONE) || filter.Condition != null))
-                throw new Exception("Parameter should have atleast single condition or group condition.");
-
-            return getSearchCriteriaStringStartProcess(filter);
-        }
-
-        private string getSearchCriteriaStringStartProcess(Filter filter)
-        {
-            string searchCriteria = string.Empty;
-            if (filter.Condition != null)
-                searchCriteria = getSearchStringBySingleCondition(filter.Condition);
-            else if (filter.GroupConditions.Count > 0 && filter.GroupOperator != GroupOperator.NONE)
-                searchCriteria = getSearchStringByGroupCondition(filter.GroupConditions, filter.GroupOperator);
-            return searchCriteria;
-        }
-
-        private string getOperationString(GroupOperator groupOperator)
-        {
-            switch (groupOperator)
-            {
-                case GroupOperator.AND:
-                    return "$and";
-                case GroupOperator.OR:
-                    return "$or";
-                case GroupOperator.NOT:
-                    return "$not";
-                case GroupOperator.NOR:
-                    return "$nor";
-            }
-            return string.Empty;
-        }
-
-        private string getSearchStringByGroupCondition(List<Condition> groupConditions, GroupOperator groupOperator)
-        {
-            string searchCriteria = "{ " + getOperationString(groupOperator) + " : [ ";
-
-            foreach (var groupCondition in groupConditions)
-                searchCriteria += getSearchStringBySingleCondition(groupCondition) + ",";
-
-            searchCriteria = searchCriteria.TrimEnd(',') + " ] }";
-
-            return searchCriteria;
-        }
-
-        private string getSearchStringBySingleCondition(Condition condition)
-        {
-            string searchCriteria = "";
-
-            if ((condition.GroupConditions.Count > 0 && condition.GroupOperator != GroupOperator.NONE) && MyConvert.ToString(condition.Parameter) != String.Empty)
-                throw new Exception("Condition should not have single condition and group condition both.");
-
-            if (!((condition.GroupConditions.Count > 0 && condition.GroupOperator != GroupOperator.NONE) || MyConvert.ToString(condition.Parameter) != String.Empty))
-                throw new Exception("Condition should have atleast single condition or group condition.");
-
-            if (condition.GroupConditions.Count > 0 && condition.GroupOperator != GroupOperator.NONE)
-            {
-                searchCriteria += getSearchStringByGroupCondition(condition.GroupConditions, condition.GroupOperator);
-            }
-            else
-            {
-                if (condition.Parameter != string.Empty)
-                {
-                    if (condition.Compare == CompareOperator.Equal)
-                        searchCriteria += "{ \"" + condition.Parameter + "\" : { $eq: " + condition.DocumentValue + " } } ";
-                    else if (condition.Compare == CompareOperator.NotEqual)
-                        searchCriteria += "{ \"" + condition.Parameter + "\" : { $ne: " + condition.DocumentValue + " } } ";
-                    else if (condition.Compare == CompareOperator.GreaterThan)
-                        searchCriteria += "{ \"" + condition.Parameter + "\" : { $gt: " + condition.DocumentValue + " } } ";
-                    else if (condition.Compare == CompareOperator.GreaterThanEqual)
-                        searchCriteria += "{ \"" + condition.Parameter + "\" : { $gte: " + condition.DocumentValue + " } } ";
-                    else if (condition.Compare == CompareOperator.LessThan)
-                        searchCriteria += "{ \"" + condition.Parameter + "\" : { $lt: " + condition.DocumentValue + " } } ";
-                    else if (condition.Compare == CompareOperator.LessThanEqual)
-                        searchCriteria += "{ \"" + condition.Parameter + "\" : { $lte: " + condition.DocumentValue + " } } ";
-                    else if (condition.Compare == CompareOperator.Contains)
-                        searchCriteria += "{ \"" + condition.Parameter + "\" : { $regex: /.*" + condition.Value + ".*/, $options: 'im' } } ";
-                    else if (condition.Compare == CompareOperator.BeginWith)
-                        searchCriteria += "{ \"" + condition.Parameter + "\" : { $regex: /^" + condition.Value + "/, $options: 'im' } } ";
-                    else if (condition.Compare == CompareOperator.EndWith)
-                        searchCriteria += "{ \"" + condition.Parameter + "\" : { $regex: /" + condition.Value + "$/, $options: 'im' } } ";
-                    else if (condition.Compare == CompareOperator.In)
-                        searchCriteria += "{ \"" + condition.Parameter + "\" : { $in: " + condition.Value + " } } ";
-                    else if (condition.Compare == CompareOperator.NotIn)
-                        searchCriteria += "{ \"" + condition.Parameter + "\" : { $nin: " + condition.Value + " } } ";
-                }
-            }
-            return searchCriteria;
-        }
-
         #endregion
     }
 

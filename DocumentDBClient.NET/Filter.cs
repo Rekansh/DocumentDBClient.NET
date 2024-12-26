@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using MongoDB.Driver;
+using System.ComponentModel.DataAnnotations;
 
 namespace DocumentDBClient
 {
@@ -21,7 +22,124 @@ namespace DocumentDBClient
             GroupConditions = conditions;
         }
 
+        #region Methods
+        internal FindOptions<TEntity, TEntity> GetOptions<TEntity>(Sort sort, int pageNo = 0, int pageSize = 0)
+        {
+            var findOptions = new FindOptions<TEntity, TEntity>();
+            if (sort != null && MyConvert.ToString(sort.Name) != string.Empty)
+            {
+                var sortBuilders = Builders<TEntity>.Sort.Ascending(sort.Name);
+                if (sort.Direction == SortDirection.Descending)
+                    sortBuilders = Builders<TEntity>.Sort.Descending(sort.Name);
+                findOptions = new FindOptions<TEntity, TEntity>()
+                {
+                    Sort = sortBuilders
+                };
+            }
+            if (pageNo > 0 && pageSize > 0)
+            {
+                int skipRecords = (pageNo - 1) * pageSize;
+                findOptions.Skip = skipRecords;
+                findOptions.Limit = pageSize;
+            }
+            return findOptions;
+        }
 
+        internal string ToString()
+        {
+            if ((GroupConditions.Count > 0 && GroupOperator != GroupOperator.NONE) && Condition != null)
+                throw new Exception("Parameter should not have single condition and group condition both.");
+
+            if (!((GroupConditions.Count > 0 && GroupOperator != GroupOperator.NONE) || Condition != null))
+                throw new Exception("Parameter should have atleast single condition or group condition.");
+
+            return getFilterProcessStart();
+        }
+
+        private string getFilterProcessStart()
+        {
+            string filterString = string.Empty;
+            if (Condition != null)
+                filterString = getFilterStringBySingleCondition(Condition);
+            else if (GroupConditions.Count > 0 && GroupOperator != GroupOperator.NONE)
+                filterString = getFilterStringByGroupCondition(GroupConditions, GroupOperator);
+            return filterString;
+        }
+
+        private string getOperationString(GroupOperator groupOperator)
+        {
+            switch (groupOperator)
+            {
+                case GroupOperator.AND:
+                    return "$and";
+                case GroupOperator.OR:
+                    return "$or";
+                case GroupOperator.NOT:
+                    return "$not";
+                case GroupOperator.NOR:
+                    return "$nor";
+            }
+            return string.Empty;
+        }
+
+        private string getFilterStringByGroupCondition(List<Condition> groupConditions, GroupOperator groupOperator)
+        {
+            string filterString = "{ " + getOperationString(groupOperator) + " : [ ";
+
+            foreach (var groupCondition in groupConditions)
+                filterString += getFilterStringBySingleCondition(groupCondition) + ",";
+
+            filterString = filterString.TrimEnd(',') + " ] }";
+
+            return filterString;
+        }
+
+        private string getFilterStringBySingleCondition(Condition condition)
+        {
+            string filterString = "";
+
+            if ((condition.GroupConditions.Count > 0 && condition.GroupOperator != GroupOperator.NONE) && MyConvert.ToString(condition.Parameter) != String.Empty)
+                throw new Exception("Condition should not have single condition and group condition both.");
+
+            if (!((condition.GroupConditions.Count > 0 && condition.GroupOperator != GroupOperator.NONE) || MyConvert.ToString(condition.Parameter) != String.Empty))
+                throw new Exception("Condition should have atleast single condition or group condition.");
+
+            if (condition.GroupConditions.Count > 0 && condition.GroupOperator != GroupOperator.NONE)
+            {
+                filterString += getFilterStringByGroupCondition(condition.GroupConditions, condition.GroupOperator);
+            }
+            else
+            {
+                if (condition.Parameter != string.Empty)
+                {
+                    if (condition.Compare == CompareOperator.Equal)
+                        filterString += "{ \"" + condition.Parameter + "\" : { $eq: " + condition.DocumentValue + " } } ";
+                    else if (condition.Compare == CompareOperator.NotEqual)
+                        filterString += "{ \"" + condition.Parameter + "\" : { $ne: " + condition.DocumentValue + " } } ";
+                    else if (condition.Compare == CompareOperator.GreaterThan)
+                        filterString += "{ \"" + condition.Parameter + "\" : { $gt: " + condition.DocumentValue + " } } ";
+                    else if (condition.Compare == CompareOperator.GreaterThanEqual)
+                        filterString += "{ \"" + condition.Parameter + "\" : { $gte: " + condition.DocumentValue + " } } ";
+                    else if (condition.Compare == CompareOperator.LessThan)
+                        filterString += "{ \"" + condition.Parameter + "\" : { $lt: " + condition.DocumentValue + " } } ";
+                    else if (condition.Compare == CompareOperator.LessThanEqual)
+                        filterString += "{ \"" + condition.Parameter + "\" : { $lte: " + condition.DocumentValue + " } } ";
+                    else if (condition.Compare == CompareOperator.Contains)
+                        filterString += "{ \"" + condition.Parameter + "\" : { $regex: /.*" + condition.Value + ".*/, $options: 'im' } } ";
+                    else if (condition.Compare == CompareOperator.BeginWith)
+                        filterString += "{ \"" + condition.Parameter + "\" : { $regex: /^" + condition.Value + "/, $options: 'im' } } ";
+                    else if (condition.Compare == CompareOperator.EndWith)
+                        filterString += "{ \"" + condition.Parameter + "\" : { $regex: /" + condition.Value + "$/, $options: 'im' } } ";
+                    else if (condition.Compare == CompareOperator.In)
+                        filterString += "{ \"" + condition.Parameter + "\" : { $in: " + condition.Value + " } } ";
+                    else if (condition.Compare == CompareOperator.NotIn)
+                        filterString += "{ \"" + condition.Parameter + "\" : { $nin: " + condition.Value + " } } ";
+                }
+            }
+            return filterString;
+        }
+
+        #endregion
     }
 
     public class Condition
@@ -140,23 +258,5 @@ namespace DocumentDBClient
         String = 1,
         Number = 2,
         DateTime = 3
-    }
-
-    public enum SortDirection
-    {
-        Ascending = 1,
-        Descending = 2
-    }
-
-    public class Sort
-    {
-        public string Name { get; set; } = string.Empty;
-        public SortDirection Direction { get; set; } = SortDirection.Ascending;
-
-        public Sort(string name, SortDirection direction)
-        {
-            Name = name;
-            Direction = direction;
-        }
     }
 }
