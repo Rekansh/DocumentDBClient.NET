@@ -109,22 +109,22 @@ namespace DocumentDBClient
         #region Public Get Methods
         public bool IsExist(string id)
         {
-            return _collection.CountDocuments(document => document.Id == id) > 0;
+            return (_collection.CountDocuments(document => document.Id == id) > 0);
         }
 
         public async Task<bool> IsExistAsync(string id)
         {
-            return await _collection.CountDocumentsAsync(document => document.Id == id) > 0;
+            return ((await _collection.CountDocumentsAsync(document => document.Id == id)) > 0);
         }
 
         public bool IsExist(Filter filter)
         {
-            return _collection.CountDocuments(filter.ToString()) > 0;
+            return (_collection.CountDocuments(filter.ToString()) > 0);
         }
 
         public async Task<bool> IsExistAsync(Filter filter)
         {
-            return await _collection.CountDocumentsAsync(filter.ToString()) > 0;
+            return ((await _collection.CountDocumentsAsync(filter.ToString())) > 0);
         }
 
         public TEntity GetById(string id)
